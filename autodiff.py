@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class Node(object):
     """Node in a computation graph."""
     def __init__(self):
