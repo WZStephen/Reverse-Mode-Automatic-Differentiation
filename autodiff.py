@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Node(object):
     """Node in a computation graph."""
     def __init__(self):
@@ -137,10 +138,15 @@ class MulOp(Op):
     def compute(self, node, input_vals):
         """Given values of two input nodes, return result of element-wise multiplication."""
         """TODO: Your code here"""
+        if not len(input_vals) == 2:
+            raise AssertionError
+        return input_vals[0]*input_vals[1]
 
     def gradient(self, node, output_grad):
         """Given gradient of multiply node, return gradient contributions to each input."""
         """TODO: Your code here"""
+        res = [node.inputs[1] * output_grad, output_grad * node.inputs[0]]
+        return res
 
 class MulByConstOp(Op):
     """Op to element-wise multiply a nodes by a constant."""
@@ -276,9 +282,14 @@ class Executor:
         # Traverse graph in topological sort order and compute values for all nodes.
         topo_order = find_topo_sort(self.eval_node_list)
         """TODO: Your code here"""
+        for node in topo_order:
+            if node not in node_to_val_map:
+                input_vals = list(map(lambda x: node_to_val_map[x], node.inputs))
+                value = node.op.compute(node, input_vals)
+                node_to_val_map[node] = value
 
-        # Collect node values.
         node_val_results = [node_to_val_map[node] for node in self.eval_node_list]
+        #return list(map(lambda x: node_to_val_map[x], self.eval_node_list))
         return node_val_results
 
 def gradients(output_node, node_list):
@@ -307,7 +318,20 @@ def gradients(output_node, node_list):
     reverse_topo_order = reversed(find_topo_sort([output_node]))
 
     """TODO: Your code here"""
-
+    # For every node, we compute them a reversed topology order. Thus,
+    # all the other paths have been computed already
+    # When we compute the gradient for a specific node,
+    # we can also update the gradient for previous computed node
+    for node in reverse_topo_order:
+        node_to_output_grad[node] = sum_node_list(node_to_output_grads_list[node])
+        input_gradient = node.op.gradient(node, node_to_output_grad[node])
+        for i in range(len(node.inputs)):
+            n = node.inputs[i]
+            g = input_gradient[i]
+            if n not in node_to_output_grads_list:
+                node_to_output_grads_list[n] = [g]
+            else:
+                node_to_output_grads_list[n].append(g)
     # Collect results for gradients requested.
     grad_node_list = [node_to_output_grad[node] for node in node_list]
     return grad_node_list
@@ -315,7 +339,6 @@ def gradients(output_node, node_list):
 ##############################
 ####### Helper Methods ####### 
 ##############################
-
 def find_topo_sort(node_list):
     """Given a list of nodes, return a topological sort list of nodes ending in them.
     
