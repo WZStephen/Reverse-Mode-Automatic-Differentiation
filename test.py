@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class Node(object):
 
     def __init__(self):
@@ -28,7 +27,6 @@ class Node(object):
         return self.name
 
     __repr__ = __str__
-
 
 class Op(object):
 
@@ -60,7 +58,6 @@ class Op(object):
         """
         raise NotImplementedError
 
-
 class OnesLikeOp(Op):
     """
     产生与输入节点shape相同的全1元素的张量
@@ -78,7 +75,6 @@ class OnesLikeOp(Op):
 
     def gradient(self, node, output_grad):
         return [zeros_like_op(node.inputs[0])]
-
 
 class ZerosLikeOp(Op):
     """
@@ -98,18 +94,20 @@ class ZerosLikeOp(Op):
     def gradient(self, node, output_grad):
         return [zeros_like_op(node.inputs[0])]
 
+class AddOp(Op):
 
-class PlaceholderOp(Op):
-
-    def __call__(self):
-        return Op.__call__(self)
+    def __call__(self, node1, node2):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node1, node2]
+        new_node.name = "({}+{})".format(node1, node2)
+        return new_node
 
     def compute(self, node, input_vals):
-        assert False, "placeholder values provided by feed_dict"
+        assert len(input_vals) == 2
+        return input_vals[0] + input_vals[1]
 
     def gradient(self, node, output_grad):
-        return None
-
+        return [output_grad, output_grad]
 
 class AddByConstOp(Op):
 
@@ -127,25 +125,7 @@ class AddByConstOp(Op):
     def gradient(self, node, output_grad):
         return [output_grad]
 
-
-class AddOp(Op):
-
-    def __call__(self, node1, node2):
-        new_node = Op.__call__(self)
-        new_node.inputs = [node1, node2]
-        new_node.name = "({}+{})".format(node1, node2)
-        return new_node
-
-    def compute(self, node, input_vals):
-        assert len(input_vals) == 2
-        return input_vals[0] + input_vals[1]
-
-    def gradient(self, node, output_grad):
-        return [output_grad, output_grad]
-
-
 class MulOp(Op):
-
     def __call__(self, node1, node2):
         new_node = Op.__call__(self)
         new_node.inputs = [node1, node2]
@@ -158,7 +138,6 @@ class MulOp(Op):
 
     def gradient(self, node, output_grad):
         return [node.inputs[1] * output_grad, output_grad * node.inputs[0]]
-
 
 class MulByConstOp(Op):
 
@@ -175,7 +154,6 @@ class MulByConstOp(Op):
 
     def gradient(self, node, output_grad):
         return [output_grad * node.const_attr]
-
 
 class MatMulOp(Op):
 
@@ -197,6 +175,7 @@ class MatMulOp(Op):
 
     def compute(self, node, input_vals):
         assert len(input_vals) == 2
+
         if (node.matmul_attrs_trans_A is False) and (node.matmul_attrs_trans_B is False):
             return np.matmul(input_vals[0], input_vals[1])
         if (node.matmul_attrs_trans_A is True) and (node.matmul_attrs_trans_B is False):
@@ -209,12 +188,16 @@ class MatMulOp(Op):
         return [matmul_op(output_grad, node.inputs[1], False, True),
                 matmul_op(node.inputs[0], output_grad, True, False)]
 
+class PlaceholderOp(Op):
 
-def Variable(name):
-    node = placeholder_op()
-    node.name = name
-    return node
+    def __call__(self):
+        return Op.__call__(self)
 
+    def compute(self, node, input_vals):
+        assert False, "placeholder values provided by feed_dict"
+
+    def gradient(self, node, output_grad):
+        return None
 
 class Executor(object):
     """
@@ -234,6 +217,10 @@ class Executor(object):
                 node_to_value[node] = value
         return list(map(lambda x: node_to_value[x], self.eval_node_list))
 
+def Variable(name):
+    node = placeholder_op()
+    node.name = name
+    return node
 
 def gradients(output_node, node_list):
     """
@@ -265,7 +252,6 @@ def gradients(output_node, node_list):
                 node_to_output_grads_list[n].append(g)
     return [node_to_output_grad[n] for n in node_list]
 
-
 def sum_node_list(node_list):
     """
     对节点进行求和
@@ -274,7 +260,6 @@ def sum_node_list(node_list):
     """
     from functools import reduce
     return reduce(lambda n1, n2: n1 + n2, node_list)
-
 
 def topology_sort(node_list):
     """
@@ -299,7 +284,6 @@ def topology_sort(node_list):
     for node in node_list:
         dfs(node)
     return result
-
 
 add_op = AddOp()
 add_byconst_op = AddByConstOp()
